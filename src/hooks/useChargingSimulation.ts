@@ -44,7 +44,7 @@ export function useChargingSimulation() {
             console.log('[Charging] Hardware trigger: Plug-in detected. Redirecting to simulation...');
             router.push('/(app)/charging');
         }
-    }, [batteryState, segments]);
+    }, [batteryState, router, segments]);
 
     return {
         batteryState,

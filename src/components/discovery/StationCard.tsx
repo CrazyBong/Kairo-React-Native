@@ -1,8 +1,7 @@
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Colors, Radius, Spacing } from '@/constants';
 import { Typography } from '../ui/Typography';
-import { Badge } from '../ui/Badge';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 interface Station {

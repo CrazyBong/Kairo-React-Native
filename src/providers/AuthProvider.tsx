@@ -1,10 +1,11 @@
-// src/providers/AuthProvider.tsx
-import React, { createContext, useContext, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { AxiosError } from 'axios';
+
+import { getMe } from '@/api/auth';
 import { useAuthStore } from '@/store/auth.store';
-import { useRouter, useSegments } from 'expo-router';
 
 interface AuthContextType {
-    // Add auth-related methods if needed
+    isReady: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -14,21 +15,69 @@ export const useAuth = () => {
     if (!context) {
         throw new Error('useAuth must be used within an AuthProvider');
     }
+
     return context;
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { isAuthenticated, logout } = useAuthStore();
-    const segments = useSegments();
-    const router = useRouter();
+    const {
+        accessToken,
+        isAuthenticated,
+        isHydrated,
+        hydrate,
+        logout,
+        setUser,
+    } = useAuthStore();
+    const [isBootstrappingUser, setIsBootstrappingUser] = useState(true);
 
     useEffect(() => {
-        // Consolidated navigation logic is in app/_layout.tsx
-        // AuthProvider now strictly manages auth state/initialization
-    }, [isAuthenticated, segments, router]);
+        hydrate();
+    }, [hydrate]);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        async function loadCurrentUser() {
+            if (!isHydrated) {
+                return;
+            }
+
+            if (!accessToken || !isAuthenticated) {
+                if (isMounted) {
+                    setIsBootstrappingUser(false);
+                }
+                return;
+            }
+
+            try {
+                const response = await getMe();
+                if (isMounted) {
+                    setUser(response.data.data);
+                    setIsBootstrappingUser(false);
+                }
+            } catch (error) {
+                if (isMounted) {
+                    const status = error instanceof AxiosError ? error.response?.status : undefined;
+                    if (status === 401) {
+                        logout();
+                    }
+                    setIsBootstrappingUser(false);
+                }
+            }
+        }
+
+        if (isHydrated) {
+            setIsBootstrappingUser(true);
+        }
+        loadCurrentUser();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [accessToken, isAuthenticated, isHydrated, logout, setUser]);
 
     return (
-        <AuthContext.Provider value={{}}>
+        <AuthContext.Provider value={{ isReady: isHydrated && !isBootstrappingUser }}>
             {children}
         </AuthContext.Provider>
     );

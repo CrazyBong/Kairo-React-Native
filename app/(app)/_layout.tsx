@@ -5,7 +5,7 @@ import { Colors } from '@/constants';
 import * as Haptics from 'expo-haptics';
 import { TouchableOpacity, Platform } from 'react-native';
 
-function TabBarIcon({ name, color, focused }: { name: any; color: string; focused: boolean }) {
+function TabBarIcon({ name, color }: { name: any; color: string; focused: boolean }) {
   // Scaling icon for active state using Reanimated ideally, but static standard scale for simplicity here
   return <MaterialCommunityIcons name={name} size={26} color={color} style={{ marginBottom: -3 }} />;
 }

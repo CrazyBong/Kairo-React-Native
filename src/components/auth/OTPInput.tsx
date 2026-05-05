@@ -6,9 +6,8 @@ import Animated, {
     useAnimatedStyle,
     withSequence,
     withTiming,
-    withSpring,
 } from 'react-native-reanimated';
-import { Colors, Radius, Spacing, Typography as Tokens } from '@/constants';
+import { Colors, Radius, Spacing } from '@/constants';
 import { Typography } from '../ui/Typography';
 
 interface OTPInputProps {
@@ -20,7 +19,7 @@ interface OTPInputProps {
 export const OTPInput: React.FC<OTPInputProps> = ({ length = 6, onComplete, error }) => {
     const [otp, setOtp] = useState<string[]>(Array(length).fill(''));
     const [focusedIndex, setFocusedIndex] = useState<number>(0);
-    const inputs = useRef<Array<TextInput | null>>([]);
+    const inputs = useRef<(TextInput | null)[]>([]);
 
     const shakeTranslation = useSharedValue(0);
 
@@ -34,7 +33,7 @@ export const OTPInput: React.FC<OTPInputProps> = ({ length = 6, onComplete, erro
                 withTiming(0, { duration: 50 })
             );
         }
-    }, [error]);
+    }, [error, shakeTranslation]);
 
     const animatedStyle = useAnimatedStyle(() => ({
         transform: [{ translateX: shakeTranslation.value }],
@@ -94,7 +93,9 @@ export const OTPInput: React.FC<OTPInputProps> = ({ length = 6, onComplete, erro
                     return (
                         <TextInput
                             key={index}
-                            ref={(ref) => (inputs.current[index] = ref)}
+                            ref={(ref) => {
+                                inputs.current[index] = ref;
+                            }}
                             style={[
                                 styles.box,
                                 isFocused && styles.boxFocused,

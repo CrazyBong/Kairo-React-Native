@@ -1,10 +1,10 @@
 // src/components/ui/Typography.tsx
 import React from 'react';
-import { Text, TextProps, StyleSheet } from 'react-native';
+import { Text, TextProps } from 'react-native';
 import { Typography as Tokens, Colors } from '@/constants';
 
 type Variant = keyof typeof Tokens;
-type Color = keyof typeof Colors.text;
+type Color = keyof typeof Colors.text | 'success' | 'error' | 'warning';
 
 interface TypographyProps extends TextProps {
     variant?: Variant;
@@ -20,11 +20,17 @@ export const Typography: React.FC<TypographyProps> = ({
     children,
     ...rest
 }) => {
+    const semanticColor = Colors.semantic[color as keyof typeof Colors.semantic];
+    const resolvedColor =
+        color in Colors.text
+            ? Colors.text[color as keyof typeof Colors.text]
+            : semanticColor ?? Colors.text.primary;
+
     return (
         <Text
             style={[
                 Tokens[variant],
-                { color: Colors.text[color], textAlign: align },
+                { color: resolvedColor, textAlign: align },
                 style,
             ]}
             {...rest}

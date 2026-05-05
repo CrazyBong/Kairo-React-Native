@@ -1,22 +1,6 @@
-// src/store/auth.store.ts
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import { MMKV } from 'react-native-mmkv';
 
-// Lazy MMKV initialization — Nitro JSI modules must not be initialized at top-level
-let _storage: MMKV | null = null;
-const getStorage = (): MMKV => {
-    if (!_storage) {
-        _storage = new MMKV({ id: 'kairo-auth' });
-    }
-    return _storage;
-};
-
-const mmkvStorage = {
-    getItem: (key: string) => getStorage().getString(key) ?? null,
-    setItem: (key: string, value: string) => getStorage().set(key, value),
-    removeItem: (key: string) => getStorage().delete(key),
-};
+import { getAppStorage } from '@/lib/storage';
 
 export interface User {
     id: string;
@@ -34,32 +18,77 @@ interface AuthState {
     refreshToken: string | null;
     user: User | null;
     isAuthenticated: boolean;
+    isHydrated: boolean;
     setTokens: (access: string, refresh: string) => void;
-    setUser: (user: User) => void;
+    setAccessToken: (accessToken: string, refreshToken?: string | null) => void;
+    setUser: (user: User | null) => void;
+    hydrate: () => void;
     logout: () => void;
 }
 
-export const useAuthStore = create<AuthState>()(
-    persist<AuthState>(
-        (set) => ({
+export const useAuthStore = create<AuthState>((set) => ({
+    accessToken: null,
+    refreshToken: null,
+    user: null,
+    isAuthenticated: false,
+    isHydrated: false,
+    setTokens: (accessToken, refreshToken) => {
+        const storage = getAppStorage();
+        storage.set('access_token', accessToken);
+        storage.set('refresh_token', refreshToken);
+
+        set({
+            accessToken,
+            refreshToken,
+            isAuthenticated: true,
+        });
+    },
+    setAccessToken: (accessToken, refreshToken) => {
+        const storage = getAppStorage();
+        storage.set('access_token', accessToken);
+        if (refreshToken !== undefined) {
+            if (refreshToken === null) {
+                storage.delete('refresh_token');
+            } else {
+                storage.set('refresh_token', refreshToken);
+            }
+        }
+
+        set((state) => ({
+            accessToken,
+            refreshToken: refreshToken === undefined ? state.refreshToken : refreshToken,
+            isAuthenticated: true,
+        }));
+    },
+    setUser: (user) => {
+        set((state) => ({
+            user,
+            isAuthenticated: Boolean(state.accessToken),
+        }));
+    },
+    hydrate: () => {
+        const storage = getAppStorage();
+        const accessToken = storage.getString('access_token');
+        const refreshToken = storage.getString('refresh_token');
+
+        set({
+            accessToken,
+            refreshToken,
+            isAuthenticated: Boolean(accessToken),
+            isHydrated: true,
+        });
+    },
+    logout: () => {
+        const storage = getAppStorage();
+        storage.delete('access_token');
+        storage.delete('refresh_token');
+
+        set({
             accessToken: null,
             refreshToken: null,
             user: null,
             isAuthenticated: false,
-            setTokens: (access: string, refresh: string) => {
-                set({ accessToken: access, refreshToken: refresh, isAuthenticated: true });
-            },
-            setUser: (user: User) => set({ user }),
-            logout: () => {
-                const storage = getStorage();
-                storage.delete('access_token');
-                storage.delete('refresh_token');
-                set({ accessToken: null, refreshToken: null, user: null, isAuthenticated: false });
-            },
-        }),
-        {
-            name: 'kairo-auth',
-            storage: createJSONStorage(() => mmkvStorage),
-        }
-    )
-);
+            isHydrated: true,
+        });
+    },
+}));

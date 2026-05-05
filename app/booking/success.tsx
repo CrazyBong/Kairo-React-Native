@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { View, StyleSheet, TouchableOpacity, BackHandler } from 'react-native';
 import { Colors, Spacing, Radius } from '@/constants';
 import { Typography } from '@/components/ui/Typography';
@@ -8,14 +8,6 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-
-// Guarded import to prevent Expo Go native layer crashes
-let Audio: any = null;
-try {
-    Audio = require('expo-av').Audio;
-} catch (e) {
-    console.warn("expo-av not natively bundled, sound disabled.");
-}
 
 export default function BookingSuccessScreen() {
     const clearDraft = useBookingStore(s => s.clearDraft);
@@ -31,7 +23,9 @@ export default function BookingSuccessScreen() {
             try {
                 await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-                if (Audio) {
+                const expoAvModule = await import('expo-av').catch(() => null);
+                if (expoAvModule?.Audio) {
+                    const { Audio } = expoAvModule;
                     const { sound } = await Audio.Sound.createAsync(
                         { uri: 'https://cdn.pixabay.com/download/audio/2021/08/04/audio_0625c1539c.mp3?filename=success-1-6297.mp3' },
                         { shouldPlay: true }
@@ -59,7 +53,7 @@ export default function BookingSuccessScreen() {
             backHandler.remove();
             soundRef.current?.unloadAsync?.();
         };
-    }, []);
+    }, [clearDraft]);
 
     // FIX: "View Bookings" navigates to bookings tab, not home
     const handleViewBookings = () => {

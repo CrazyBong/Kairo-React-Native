@@ -49,8 +49,8 @@ const styles = StyleSheet.create({
         alignSelf: 'flex-start',
     },
     active: {
-        backgroundColor: Colors.brand.black,
-        borderColor: Colors.brand.black,
+        backgroundColor: Colors.brand.dark,
+        borderColor: Colors.brand.dark,
     },
     inactive: {
         backgroundColor: Colors.brand.white,

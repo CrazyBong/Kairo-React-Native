@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, Image, TouchableOpacity, Alert } from 'react-native';
+import { View, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { Colors, Spacing, Radius, Shadow } from '@/constants';
 import { Typography } from '@/components/ui/Typography';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 interface ConnectedCarHeroProps {
     batteryLevel: number;
     carName: string;
-    status: 'Parked' | 'Charging' | 'Driving';
+    status: 'Parked' | 'Charging' | 'Driving' | 'Not connected';
 }
 
 export const ConnectedCarHero: React.FC<ConnectedCarHeroProps> = ({ batteryLevel, carName, status }) => {

@@ -1,6 +1,6 @@
 // src/components/ui/Skeleton.tsx
 import React, { useEffect } from 'react';
-import { StyleSheet, ViewStyle } from 'react-native';
+import { DimensionValue, StyleSheet, ViewStyle } from 'react-native';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -12,8 +12,8 @@ import Animated, {
 import { Colors, Radius } from '@/constants';
 
 interface SkeletonProps {
-    width?: number | string;
-    height?: number | string;
+    width?: DimensionValue;
+    height?: DimensionValue;
     radius?: keyof typeof Radius;
     style?: ViewStyle;
 }
@@ -35,9 +35,9 @@ export const Skeleton: React.FC<SkeletonProps> = ({
             -1,
             true
         );
-    }, []);
+    }, [opacity]);
 
-    const animatedStyle = useAnimatedStyle(() => ({
+    const animatedStyle = useAnimatedStyle<ViewStyle>(() => ({
         opacity: opacity.value,
     }));
 

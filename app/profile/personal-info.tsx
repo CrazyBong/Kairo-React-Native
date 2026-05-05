@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Colors, Spacing, Radius } from '@/constants';
+import { Colors, Spacing } from '@/constants';
 import { Typography } from '@/components/ui/Typography';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';

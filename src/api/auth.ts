@@ -1,11 +1,6 @@
-// src/api/auth.ts
 import client from './client';
 
-export interface VerifyOtpResponse {
-    is_new_user: boolean;
-    access_token: string;
-    refresh_token: string;
-}
+import type { ApiSuccessResponse } from '@/types/api';
 
 export interface User {
     id: string;
@@ -18,27 +13,35 @@ export interface User {
     expo_push_token: string | null;
 }
 
-export interface ApiResponse<T> {
-    data: T;
-    message?: string;
+export interface VerifyOtpResponse {
+    is_new_user: boolean;
+    access_token: string;
+    refresh_token: string;
+    token_type?: string;
+    access_token_expires_in?: number;
+    refresh_token_expires_in?: number;
+    user?: User;
 }
 
-export const sendOtp = (phone: string) => {
+export function sendOtp(phone: string) {
     return client.post('/auth/otp/send', { phone });
-};
+}
 
-export const verifyOtp = (phone: string, otp: string) => {
-    return client.post<ApiResponse<VerifyOtpResponse>>('/auth/otp/verify', { phone, otp });
-};
+export function verifyOtp(phone: string, otp: string) {
+    return client.post<ApiSuccessResponse<VerifyOtpResponse>>('/auth/otp/verify', {
+        phone,
+        otp,
+    });
+}
 
-export const getMe = () => {
-    return client.get<ApiResponse<User>>('/auth/me');
-};
+export function getMe() {
+    return client.get<ApiSuccessResponse<User>>('/auth/me');
+}
 
-export const logout = () => {
+export function logout() {
     return client.delete('/auth/logout');
-};
+}
 
-export const updateProfile = (data: Partial<User>) => {
-    return client.patch<ApiResponse<User>>('/auth/me', data);
-};
+export function updateProfile(data: Partial<User>) {
+    return client.patch<ApiSuccessResponse<User>>('/auth/me', data);
+}

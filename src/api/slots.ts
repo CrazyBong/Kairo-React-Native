@@ -1,39 +1,33 @@
 import { useQuery } from '@tanstack/react-query';
+
 import client from './client';
+
+import type { ApiSuccessResponse } from '@/types/api';
 
 export interface Slot {
     id: string;
     station_id: string;
-    connector_id: string;
-    slot_label: string;
-    start_time: string; // ISO string 09:00:00
-    end_time: string;
-    status: 'available' | 'booked' | 'maintenance';
+    slot_number: number;
+    charger_type: string;
+    power_kw: number;
+    status: 'AVAILABLE' | 'BOOKED' | 'IN_USE' | 'OFFLINE' | 'LOCKED';
+    fault_code?: string | null;
+    locked_until?: string | null;
+    created_at?: string;
+    updated_at?: string;
 }
 
-export const fetchStationSlots = async (stationId: string, date: string): Promise<Slot[]> => {
-    try {
-        const { data } = await client.get(`/slots/stations/${stationId}`, { params: { date } });
-        if (data && data.data) return data.data;
-    } catch (e) {
-        console.log('API not ready or failed, using mock data for Slots');
-    }
+export async function fetchStationSlots(stationId: string): Promise<Slot[]> {
+    const response = await client.get<ApiSuccessResponse<Slot[]>>(`/slots/stations/${stationId}`);
+    return response.data.data;
+}
 
-    // Fallback Mock Data
-    const baseDate = new Date().toISOString().split('T')[0];
-    return [
-        { id: '1', station_id: stationId, connector_id: '1', slot_label: 'Slot A1 (CCS2)', start_time: `${baseDate}T09:00:00Z`, end_time: `${baseDate}T09:45:00Z`, status: 'available' },
-        { id: '2', station_id: stationId, connector_id: '1', slot_label: 'Slot A1 (CCS2)', start_time: `${baseDate}T10:00:00Z`, end_time: `${baseDate}T10:45:00Z`, status: 'booked' },
-        { id: '3', station_id: stationId, connector_id: '2', slot_label: 'Slot A2 (Type 2)', start_time: `${baseDate}T09:00:00Z`, end_time: `${baseDate}T09:45:00Z`, status: 'available' },
-        { id: '4', station_id: stationId, connector_id: '2', slot_label: 'Slot A2 (Type 2)', start_time: `${baseDate}T11:00:00Z`, end_time: `${baseDate}T11:45:00Z`, status: 'available' },
-    ];
-};
-
-export const useStationSlots = (stationId: string, date: string) => {
+export function useStationSlots(stationId: string) {
     return useQuery({
-        queryKey: ['slots', stationId, date],
-        queryFn: () => fetchStationSlots(stationId, date),
+        queryKey: ['slots', stationId],
+        queryFn: () => fetchStationSlots(stationId),
+        enabled: Boolean(stationId),
         staleTime: 10_000,
         refetchInterval: 15_000,
     });
-};
+}

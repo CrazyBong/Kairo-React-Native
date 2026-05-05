@@ -6,8 +6,6 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { SwipeButton } from '@/components/ui/SwipeButton';
-import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import Animated, {
     useAnimatedStyle,
     withRepeat,
@@ -29,7 +27,6 @@ export default function ChargingTabScreen() {
     const [isStarted, setIsStarted] = useState(false);
     const [soc, setSoc] = useState(0);
     const [power, setPower] = useState(0);
-    const [isPluggedIn, setIsPluggedIn] = useState(true);
 
     const pulse = useSharedValue(1);
 
@@ -39,11 +36,15 @@ export default function ChargingTabScreen() {
 
         const sub = addSafeBatteryListener(({ batteryState }) => {
             const charging = batteryState === BatteryState.CHARGING || batteryState === BatteryState.FULL;
-            setIsPluggedIn(charging);
+            if (!charging) {
+                setIsStarted(false);
+                setPower(0);
+                pulse.value = withTiming(1);
+            }
         });
 
         return () => sub.remove();
-    }, []);
+    }, [pulse]);
 
     // Simulation Engine - Only runs if IS STARTED
     useEffect(() => {
@@ -70,7 +71,7 @@ export default function ChargingTabScreen() {
         );
 
         return () => clearInterval(timer);
-    }, [isStarted]);
+    }, [isStarted, pulse]);
 
     const range = useMemo(() => Math.round(soc * 6), [soc]);
     const timeRemaining = useMemo(() => {
@@ -136,7 +137,7 @@ export default function ChargingTabScreen() {
 
             {/* Stats Grid */}
             <Animated.View entering={FadeInDown.delay(300).springify()} style={styles.statsGrid}>
-                <StatCard label="POWER SHARING" value={`${power.toFixed(1)} W`} />
+                <StatCard label="POWER SHARING" value={`${power.toFixed(1)} kW`} />
                 <StatCard label="RANGE ADDED" value={`+${range} km`} valueColor={Colors.brand.primary} />
                 <StatCard label="TIME LEFT" value={`${timeRemaining} min`} />
             </Animated.View>

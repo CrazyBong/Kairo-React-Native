@@ -1,111 +1,170 @@
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { Colors, Spacing, Radius } from '@/constants';
-import { Typography } from '@/components/ui/Typography';
-import { Button } from '@/components/ui/Button';
-import { useBookingStore } from '@/store/booking.store';
-import { useRazorpay } from '@/hooks/useRazorpay';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { useMutation } from '@tanstack/react-query';
+
+import { cancelBooking, createBooking } from '@/api/bookings';
+import { verifyPayment } from '@/api/payments';
+import { Button } from '@/components/ui/Button';
+import { Typography } from '@/components/ui/Typography';
+import { Colors, Radius, Spacing } from '@/constants';
+import { useRazorpay } from '@/hooks/useRazorpay';
+import { useBookingStore } from '@/store/booking.store';
+import { formatCurrency } from '@/utils/formatters';
+import { normalizeApiError } from '@/utils/api-error';
 
 export default function BookingConfirmScreen() {
-    const draft = useBookingStore(s => s.draft);
+    const draft = useBookingStore((state) => state.draft);
+    const clearDraft = useBookingStore((state) => state.clearDraft);
     const { openCheckout, isProcessing } = useRazorpay();
+
+    const bookingMutation = useMutation({
+        mutationFn: createBooking,
+    });
+
+    const paymentVerificationMutation = useMutation({
+        mutationFn: verifyPayment,
+    });
 
     if (!draft) {
         return (
             <View style={styles.errorContainer}>
-                <Typography variant="body" color="secondary">No booking draft found.</Typography>
-                <Button label="Go Home" onPress={() => router.replace('/(app)/')} style={{ marginTop: Spacing.md }} />
+                <Typography variant="body" color="secondary">
+                    No booking draft found.
+                </Typography>
+                <Button
+                    label="Go Home"
+                    onPress={() => router.replace('/(app)')}
+                    style={styles.homeButton}
+                />
             </View>
         );
     }
 
+    const subtotal = draft.estimatedCost;
+    const taxes = subtotal * 0.18;
+    const total = subtotal + taxes;
+    const isSubmitting = bookingMutation.isPending || paymentVerificationMutation.isPending || isProcessing;
+
     const handlePayment = async () => {
-        // We simulate creating an order ID on backend
-        const mockOrderId = `order_${Date.now()}`;
-        const paymentResult = await openCheckout(draft.estimatedCost, mockOrderId);
+        let bookingId: string | null = null;
 
-        if (paymentResult) {
-            // Payment successful, map to success screen
+        try {
+            const bookingResponse = await bookingMutation.mutateAsync({
+                slot_id: draft.slotId,
+                scheduled_start: draft.scheduledStart,
+                scheduled_end: draft.scheduledEnd,
+            });
+            bookingId = bookingResponse.data.data.booking_id;
+
+            const paymentResult = await openCheckout(total, bookingResponse.data.data.razorpay_order_id);
+            if (!paymentResult) {
+                await cancelBooking(bookingResponse.data.data.booking_id);
+                return;
+            }
+
+            await paymentVerificationMutation.mutateAsync({
+                booking_id: bookingId,
+                razorpay_order_id: paymentResult.razorpay_order_id,
+                razorpay_payment_id: paymentResult.razorpay_payment_id,
+                razorpay_signature: paymentResult.razorpay_signature,
+            });
+
+            clearDraft();
             router.replace('/booking/success');
+        } catch (error) {
+            const normalizedError = normalizeApiError(error);
+            bookingMutation.reset();
+            paymentVerificationMutation.reset();
+            if (bookingId) {
+                try {
+                    await cancelBooking(bookingId);
+                } catch {
+                    // Best-effort cleanup if booking creation succeeded before payment failed.
+                }
+            }
+            Alert.alert('Payment error', normalizedError.message);
         }
-    };
-
-    const formatTime = (isoString: string) => {
-        return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    };
-
-    const formatDate = (isoString: string) => {
-        return new Date(isoString).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
     };
 
     return (
         <View style={styles.container}>
             <ScrollView contentContainerStyle={styles.scrollContent}>
                 <Animated.View entering={FadeInDown.springify()}>
-                    <Typography variant="h2" color="primary" style={{ marginBottom: Spacing.xl }}>Checkout</Typography>
+                    <Typography variant="h2" color="primary" style={styles.title}>
+                        Checkout
+                    </Typography>
 
                     <View style={styles.receiptCard}>
                         <View style={styles.receiptHeader}>
                             <View style={styles.iconCircle}>
                                 <Ionicons name="flash" size={20} color={Colors.brand.primary} />
                             </View>
-                            <View style={{ marginLeft: Spacing.md, flex: 1 }}>
-                                <Typography variant="label" color="primary">{draft.stationName}</Typography>
-                                <Typography variant="caption" color="secondary">{draft.slotLabel} • {draft.chargerType}</Typography>
+                            <View style={styles.stationHeader}>
+                                <Typography variant="label" color="primary">
+                                    {draft.stationName}
+                                </Typography>
+                                <Typography variant="caption" color="secondary">
+                                    {draft.slotLabel} - {draft.chargerType}
+                                </Typography>
                             </View>
                         </View>
 
                         <View style={styles.divider} />
 
-                        <View style={styles.detailRow}>
-                            <Typography variant="body" color="secondary">Date</Typography>
-                            <Typography variant="label" color="primary">{formatDate(draft.scheduledStart)}</Typography>
-                        </View>
-
-                        <View style={styles.detailRow}>
-                            <Typography variant="body" color="secondary">Time</Typography>
-                            <Typography variant="label" color="primary">{formatTime(draft.scheduledStart)} - {formatTime(draft.scheduledEnd)}</Typography>
-                        </View>
+                        <DetailRow label="Start" value={new Date(draft.scheduledStart).toLocaleString('en-IN')} />
+                        <DetailRow label="End" value={new Date(draft.scheduledEnd).toLocaleString('en-IN')} />
 
                         <View style={styles.divider} />
 
-                        <View style={styles.detailRow}>
-                            <Typography variant="body" color="secondary">Subtotal</Typography>
-                            <Typography variant="body" color="primary">₹{draft.estimatedCost.toFixed(2)}</Typography>
-                        </View>
-                        <View style={styles.detailRow}>
-                            <Typography variant="body" color="secondary">Taxes & Fees</Typography>
-                            <Typography variant="body" color="primary">₹{(draft.estimatedCost * 0.18).toFixed(2)}</Typography>
-                        </View>
+                        <DetailRow label="Subtotal" value={formatCurrency(subtotal)} />
+                        <DetailRow label="Taxes & Fees" value={formatCurrency(taxes)} />
 
-                        <View style={[styles.divider, { borderStyle: 'dashed' }]} />
+                        <View style={[styles.divider, styles.dashedDivider]} />
 
-                        <View style={styles.detailRow}>
-                            <Typography variant="h3" color="primary">Total</Typography>
-                            <Typography variant="h3" color="primary">₹{(draft.estimatedCost * 1.18).toFixed(2)}</Typography>
-                        </View>
+                        <DetailRow label="Total" value={formatCurrency(total)} emphasis />
                     </View>
 
-                    <Typography variant="caption" color="tertiary" style={styles.legalText}>
-                        By proceeding, you agree to Kairo's Terms of Service and Cancellation Policy.
-                    </Typography>
+                    {bookingMutation.error ? (
+                        <Typography variant="bodySmall" color="error" style={styles.errorText}>
+                            {normalizeApiError(bookingMutation.error).message}
+                        </Typography>
+                    ) : null}
                 </Animated.View>
             </ScrollView>
 
             <View style={styles.footer}>
                 <Button
-                    label={`Pay ₹${(draft.estimatedCost * 1.18).toFixed(2)}`}
+                    label={isSubmitting ? 'Processing...' : `Pay ${formatCurrency(total)}`}
                     onPress={handlePayment}
-                    loading={isProcessing}
+                    loading={isSubmitting}
                     fullWidth
                 />
             </View>
         </View>
     );
 }
+
+const DetailRow = ({
+    label,
+    value,
+    emphasis = false,
+}: {
+    label: string;
+    value: string;
+    emphasis?: boolean;
+}) => (
+    <View style={styles.detailRow}>
+        <Typography variant={emphasis ? 'h4' : 'body'} color="secondary">
+            {label}
+        </Typography>
+        <Typography variant={emphasis ? 'h4' : 'body'} color="primary">
+            {value}
+        </Typography>
+    </View>
+);
 
 const styles = StyleSheet.create({
     container: {
@@ -116,10 +175,16 @@ const styles = StyleSheet.create({
         padding: Spacing.xl,
         paddingTop: 80,
     },
+    title: {
+        marginBottom: Spacing.xl,
+    },
     errorContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    homeButton: {
+        marginTop: Spacing.md,
     },
     receiptCard: {
         backgroundColor: Colors.brand.white,
@@ -131,6 +196,10 @@ const styles = StyleSheet.create({
     receiptHeader: {
         flexDirection: 'row',
         alignItems: 'center',
+    },
+    stationHeader: {
+        marginLeft: Spacing.md,
+        flex: 1,
     },
     iconCircle: {
         width: 44,
@@ -145,23 +214,27 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.border.subtle,
         marginVertical: Spacing.lg,
     },
+    dashedDivider: {
+        height: 0,
+        backgroundColor: 'transparent',
+        borderBottomWidth: 1,
+        borderBottomColor: Colors.border.subtle,
+        borderStyle: 'dashed',
+    },
     detailRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         marginBottom: Spacing.md,
     },
-    legalText: {
-        marginTop: Spacing.xl,
-        textAlign: 'center',
-        paddingHorizontal: Spacing.xl,
-        lineHeight: 18,
+    errorText: {
+        marginTop: Spacing.md,
     },
     footer: {
         backgroundColor: Colors.brand.white,
         padding: Spacing.xl,
         paddingBottom: 34,
         borderTopWidth: 1,
-        borderTopColor: '#f0f0f0',
-    }
+        borderTopColor: Colors.border.subtle,
+    },
 });

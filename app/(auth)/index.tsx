@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
-import { View, KeyboardAvoidingView, Platform, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation } from '@tanstack/react-query';
-import { Colors, Spacing } from '@/constants';
-import { Typography } from '@/components/ui/Typography';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+
+import { sendOtp } from '@/api/auth';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { sendOtp } from '@/api/auth';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import { Typography } from '@/components/ui/Typography';
+import { Colors, Spacing } from '@/constants';
+import { formatIndianPhoneNumber, isValidIndianPhoneNumber } from '@/utils/phone';
+import { normalizeApiError } from '@/utils/api-error';
 
 export default function PhoneScreen() {
     const router = useRouter();
@@ -19,20 +22,19 @@ export default function PhoneScreen() {
         onSuccess: (_, formattedPhone) => {
             router.push({ pathname: '/(auth)/otp', params: { phone: formattedPhone } });
         },
-        onError: (err: any) => {
-            setError(err?.response?.data?.message || 'Failed to send OTP. Please try again.');
+        onError: (mutationError) => {
+            setError(normalizeApiError(mutationError).message);
         },
     });
 
     const handleContinue = () => {
-        const digits = phone.replace(/\D/g, '').slice(0, 10);
-        const formattedPhone = `+91${digits}`;
-        const phoneRegex = /^\+91[6-9]\d{9}$/;
+        const formattedPhone = formatIndianPhoneNumber(phone);
 
-        if (!phoneRegex.test(formattedPhone)) {
-            setError('Please enter a valid 10-digit Indian mobile number');
+        if (!isValidIndianPhoneNumber(formattedPhone)) {
+            setError('Please enter a valid 10-digit Indian mobile number.');
             return;
         }
+
         setError('');
         sendOtpMutation.mutate(formattedPhone);
     };
@@ -45,22 +47,18 @@ export default function PhoneScreen() {
             <View style={styles.content}>
                 <Animated.View entering={FadeInDown.delay(100).springify()}>
                     <View style={styles.header}>
-                        <View style={styles.headerTop}>
-                            <View style={styles.iconPlaceholder}>
-                                {/* Using the primary Kairo logo */}
-                                <Image
-                                    source={require('../../assets/kairo-logo.png')}
-                                    style={styles.logoImage}
-                                    resizeMode="contain"
-                                />
-                            </View>
-                            <TouchableOpacity onPress={() => router.replace('/(app)')} style={styles.skipButton}>
-                                <Typography variant="body" color="primary">Skip</Typography>
-                            </TouchableOpacity>
+                        <View style={styles.iconPlaceholder}>
+                            <Image
+                                source={require('../../assets/kairo-logo.png')}
+                                style={styles.logoImage}
+                                resizeMode="contain"
+                            />
                         </View>
-                        <Typography variant="h1" color="primary">Enter your number</Typography>
+                        <Typography variant="h1" color="primary">
+                            Enter your number
+                        </Typography>
                         <Typography variant="body" color="tertiary" style={styles.subtitle}>
-                            We'll send a code to verify your phone number.
+                            We&apos;ll send a one-time password to verify your phone number.
                         </Typography>
                     </View>
                 </Animated.View>
@@ -71,15 +69,17 @@ export default function PhoneScreen() {
                         keyboardType="phone-pad"
                         value={phone}
                         onChangeText={(text) => {
-                            // Allow digits only
-                            const digitsOnly = text.replace(/\D/g, '').slice(0, 10);
-                            setPhone(digitsOnly);
-                            if (error) setError('');
+                            setPhone(text.replace(/\D/g, '').slice(0, 10));
+                            if (error) {
+                                setError('');
+                            }
                         }}
                         error={error}
                         maxLength={10}
                         leftIcon={
-                            <Typography variant="body" color="primary" style={styles.prefix}>+91</Typography>
+                            <Typography variant="body" color="primary" style={styles.prefix}>
+                                +91
+                            </Typography>
                         }
                     />
                 </Animated.View>
@@ -115,20 +115,12 @@ const styles = StyleSheet.create({
     header: {
         marginBottom: Spacing.xxl,
     },
-    headerTop: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: Spacing.lg,
-    },
-    skipButton: {
-        padding: Spacing.xs,
-    },
     iconPlaceholder: {
         width: 48,
         height: 48,
         justifyContent: 'center',
         alignItems: 'center',
+        marginBottom: Spacing.lg,
     },
     logoImage: {
         width: 48,

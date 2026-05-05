@@ -1,63 +1,90 @@
 import { useQuery } from '@tanstack/react-query';
+
 import client from './client';
 
-export interface Connector {
-    id: string;
-    type: string;
-    capacity_kw: number;
+import type { ApiSuccessResponse } from '@/types/api';
+
+export interface StationAddress {
+    line1?: string;
+    line2?: string | null;
+    city?: string;
+    state?: string;
+    pincode?: string;
 }
 
 export interface Station {
     id: string;
     name: string;
-    address: string;
+    network: string;
     lat: number;
     lng: number;
-    rating: number;
-    total_reviews: number;
-    connectors: Connector[];
-    pricing_kwh: number;
-    pricing_min: number;
+    address?: StationAddress | null;
     available_slots: number;
     total_slots: number;
-    image_url: string | null;
-    opening_hours: string;
+    avg_rating: number | null;
+    total_reviews?: number | null;
+    price_per_unit: number | null;
+    price_per_hour: number | null;
+    amenities: string[] | null;
+    is_active: boolean;
+    distance_km?: number;
+    charger_types?: (string | null)[];
+    image_url?: string | null;
+    operating_hours?: {
+        open?: string;
+        close?: string;
+        days?: number[];
+    };
+    last_heartbeat?: string | null;
+    created_at?: string;
+    updated_at?: string;
 }
 
-export const fetchStationDetail = async (id: string): Promise<Station> => {
-    // Try real API first
-    try {
-        const { data } = await client.get(`/stations/${id}`);
-        if (data && data.data) return data.data;
-    } catch (e) {
-        console.log('API not ready or failed, using mock data for Station Details');
+export interface NearbyStationsParams {
+    lat: number;
+    lng: number;
+    radius_km?: number;
+    charger_type?: string;
+    available_only?: boolean;
+    limit?: number;
+    offset?: number;
+}
+
+export function formatStationAddress(address?: StationAddress | null): string {
+    if (!address) {
+        return 'Address unavailable';
     }
 
-    // Fallback Mock Data for UI development
-    return {
-        id,
-        name: 'Tata Power Supercharger',
-        address: 'Koramangala, Bengaluru',
-        lat: 12.9279,
-        lng: 77.6271,
-        rating: 4.8,
-        total_reviews: 124,
-        connectors: [
-            { id: '1', type: 'CCS2', capacity_kw: 50 },
-            { id: '2', type: 'Type 2', capacity_kw: 22 },
-        ],
-        pricing_kwh: 18.5,
-        pricing_min: 2.0,
-        available_slots: 4,
-        total_slots: 6,
-        image_url: 'https://images.unsplash.com/photo-1593941707882-a5bba14938c7?auto=format&fit=crop&q=80',
-        opening_hours: '24/7',
-    };
-};
+    return [address.line1, address.line2, address.city, address.state, address.pincode]
+        .filter(Boolean)
+        .join(', ');
+}
 
-export const useStationDetail = (id: string) => {
+export async function fetchNearbyStations(params: NearbyStationsParams): Promise<Station[]> {
+    const response = await client.get<ApiSuccessResponse<Station[]>>('/stations/nearby', {
+        params,
+    });
+
+    return response.data.data;
+}
+
+export async function fetchStationDetail(id: string): Promise<Station> {
+    const response = await client.get<ApiSuccessResponse<Station>>(`/stations/${id}`);
+    return response.data.data;
+}
+
+export function useNearbyStations(params: NearbyStationsParams) {
+    return useQuery({
+        queryKey: ['stations', 'nearby', params],
+        queryFn: () => fetchNearbyStations(params),
+        staleTime: 30_000,
+    });
+}
+
+export function useStationDetail(id: string) {
     return useQuery({
         queryKey: ['station', id],
         queryFn: () => fetchStationDetail(id),
+        enabled: Boolean(id),
     });
-};
+}
