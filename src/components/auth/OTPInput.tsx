@@ -14,9 +14,10 @@ interface OTPInputProps {
     length?: number;
     onComplete: (otp: string) => void;
     error?: string | null;
+    testIDPrefix?: string;
 }
 
-export const OTPInput: React.FC<OTPInputProps> = ({ length = 6, onComplete, error }) => {
+export const OTPInput: React.FC<OTPInputProps> = ({ length = 6, onComplete, error, testIDPrefix }) => {
     const [otp, setOtp] = useState<string[]>(Array(length).fill(''));
     const [focusedIndex, setFocusedIndex] = useState<number>(0);
     const inputs = useRef<(TextInput | null)[]>([]);
@@ -96,6 +97,7 @@ export const OTPInput: React.FC<OTPInputProps> = ({ length = 6, onComplete, erro
                             ref={(ref) => {
                                 inputs.current[index] = ref;
                             }}
+                            testID={testIDPrefix ? `${testIDPrefix}-${index}` : undefined}
                             style={[
                                 styles.box,
                                 isFocused && styles.boxFocused,

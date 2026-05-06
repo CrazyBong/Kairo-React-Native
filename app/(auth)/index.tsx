@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Image, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
+import { Alert, Image, KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation } from '@tanstack/react-query';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
@@ -11,6 +11,18 @@ import { Typography } from '@/components/ui/Typography';
 import { Colors, Spacing } from '@/constants';
 import { formatIndianPhoneNumber, isValidIndianPhoneNumber } from '@/utils/phone';
 import { normalizeApiError } from '@/utils/api-error';
+import type { ApiSuccessResponse } from '@/types/api';
+import type { SendOtpResponse } from '@/api/auth';
+
+function getDevOtpFromResponse(
+    payload: SendOtpResponse | ApiSuccessResponse<SendOtpResponse>
+): string | null | undefined {
+    if ('data' in payload) {
+        return payload.data?.dev_otp;
+    }
+
+    return payload.dev_otp;
+}
 
 export default function PhoneScreen() {
     const router = useRouter();
@@ -19,7 +31,20 @@ export default function PhoneScreen() {
 
     const sendOtpMutation = useMutation({
         mutationFn: sendOtp,
-        onSuccess: (_, formattedPhone) => {
+        onSuccess: (response, formattedPhone) => {
+            const devOtp = getDevOtpFromResponse(response.data);
+            if (__DEV__ && devOtp) {
+                Alert.alert('Development OTP', `Use OTP ${devOtp} to continue.`, [
+                    {
+                        text: 'Continue',
+                        onPress: () => {
+                            router.push({ pathname: '/(auth)/otp', params: { phone: formattedPhone } });
+                        },
+                    },
+                ]);
+                return;
+            }
+
             router.push({ pathname: '/(auth)/otp', params: { phone: formattedPhone } });
         },
         onError: (mutationError) => {
@@ -57,7 +82,7 @@ export default function PhoneScreen() {
                         <Typography variant="h1" color="primary">
                             Enter your number
                         </Typography>
-                        <Typography variant="body" color="tertiary" style={styles.subtitle}>
+                        <Typography variant="body" color="tertiary" style={styles.subtitle} align="center">
                             We&apos;ll send a one-time password to verify your phone number.
                         </Typography>
                     </View>
@@ -65,6 +90,7 @@ export default function PhoneScreen() {
 
                 <Animated.View entering={FadeInUp.delay(300).springify()} style={styles.formContainer}>
                     <Input
+                        testID="auth-phone-input"
                         placeholder="Mobile Number"
                         keyboardType="phone-pad"
                         value={phone}
@@ -91,6 +117,7 @@ export default function PhoneScreen() {
                     onPress={handleContinue}
                     loading={sendOtpMutation.isPending}
                     disabled={phone.length < 10}
+                    testID="auth-continue-button"
                     fullWidth
                     size="lg"
                 />
@@ -113,22 +140,24 @@ const styles = StyleSheet.create({
         paddingTop: Spacing.hero,
     },
     header: {
+        alignItems: 'center',
         marginBottom: Spacing.xxl,
     },
     iconPlaceholder: {
-        width: 48,
-        height: 48,
+        width: 120,
+        height: 120,
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: Spacing.lg,
+        marginBottom: Spacing.xl,
     },
     logoImage: {
-        width: 48,
-        height: 48,
-        borderRadius: 12,
+        width: 112,
+        height: 112,
+        borderRadius: 24,
     },
     subtitle: {
         marginTop: Spacing.xs,
+        maxWidth: 320,
     },
     formContainer: {
         marginTop: Spacing.xl,

@@ -4,6 +4,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '@/constants';
 import * as Haptics from 'expo-haptics';
 import { TouchableOpacity, Platform } from 'react-native';
+import { useNotifications } from '@/api/notifications';
 
 function TabBarIcon({ name, color }: { name: any; color: string; focused: boolean }) {
   // Scaling icon for active state using Reanimated ideally, but static standard scale for simplicity here
@@ -11,6 +12,9 @@ function TabBarIcon({ name, color }: { name: any; color: string; focused: boolea
 }
 
 export default function AppLayout() {
+  const { data: notificationsData } = useNotifications();
+  const unreadCount = notificationsData?.unreadCount ?? 0;
+
   return (
     <Tabs
       screenOptions={{
@@ -76,7 +80,7 @@ export default function AppLayout() {
         options={{
           title: 'Alerts',
           tabBarIcon: ({ color, focused }) => <TabBarIcon name={focused ? "bell" : "bell-outline"} color={color} focused={focused} />,
-          // tabBarBadge: 3 // Mock count
+          tabBarBadge: unreadCount > 0 ? (unreadCount > 9 ? '9+' : unreadCount) : undefined,
         }}
       />
       <Tabs.Screen

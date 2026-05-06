@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
 import {
     Inter_300Light,
@@ -14,8 +15,12 @@ import {
 
 import { QueryProvider } from '@/providers/QueryProvider';
 import { AuthProvider } from '@/providers/AuthProvider';
+import { NetworkProvider } from '@/providers/NetworkProvider';
 import { useAuthStore } from '@/store/auth.store';
 import { useChargingSimulation } from '@/hooks/useChargingSimulation';
+import { initializeAppSecurity } from '@/lib/security';
+import { AppErrorBoundary } from '@/components/app/AppErrorBoundary';
+import { initializeMonitoring, Sentry } from '@/lib/monitoring';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -24,8 +29,11 @@ export const unstable_settings = {
 };
 
 SplashScreen.preventAutoHideAsync();
+initializeMonitoring();
 
 export default function RootLayout() {
+    const [isSecurityReady, setIsSecurityReady] = useState(false);
+    const [securityError, setSecurityError] = useState<Error | null>(null);
     const [loaded, error] = useFonts({
         Inter_300Light,
         Inter_400Regular,
@@ -41,22 +49,59 @@ export default function RootLayout() {
     }, [error]);
 
     useEffect(() => {
-        if (loaded) {
+        let isMounted = true;
+        let hasSecurityFailed = false;
+
+        initializeAppSecurity()
+            .catch((securityError) => {
+                hasSecurityFailed = true;
+                Sentry.captureException(securityError);
+                if (isMounted) {
+                    setSecurityError(
+                        securityError instanceof Error
+                            ? securityError
+                            : new Error('App security initialization failed')
+                    );
+                }
+            })
+            .finally(() => {
+                if (isMounted && !hasSecurityFailed) {
+                    setIsSecurityReady(true);
+                }
+            });
+
+        return () => {
+            isMounted = false;
+        };
+    }, []);
+
+    if (securityError) {
+        throw securityError;
+    }
+
+    useEffect(() => {
+        if (loaded && isSecurityReady) {
             SplashScreen.hideAsync();
         }
-    }, [loaded]);
+    }, [isSecurityReady, loaded]);
 
-    if (!loaded) {
+    if (!loaded || !isSecurityReady) {
         return null;
     }
 
     return (
         <GestureHandlerRootView style={{ flex: 1 }}>
-            <QueryProvider>
-                <AuthProvider>
-                    <RootLayoutNav />
-                </AuthProvider>
-            </QueryProvider>
+            <SafeAreaProvider>
+                <AppErrorBoundary>
+                    <QueryProvider>
+                        <NetworkProvider>
+                            <AuthProvider>
+                                <RootLayoutNav />
+                            </AuthProvider>
+                        </NetworkProvider>
+                    </QueryProvider>
+                </AppErrorBoundary>
+            </SafeAreaProvider>
         </GestureHandlerRootView>
     );
 }

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { AxiosError } from 'axios';
 
 import { getMe } from '@/api/auth';
+import { captureHandledError, setMonitoringUser } from '@/lib/monitoring';
 import { useAuthStore } from '@/store/auth.store';
 
 interface AuthContextType {
@@ -44,6 +45,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             if (!accessToken || !isAuthenticated) {
                 if (isMounted) {
+                    setMonitoringUser(null);
                     setIsBootstrappingUser(false);
                 }
                 return;
@@ -53,13 +55,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 const response = await getMe();
                 if (isMounted) {
                     setUser(response.data.data);
+                    setMonitoringUser(response.data.data);
                     setIsBootstrappingUser(false);
                 }
             } catch (error) {
                 if (isMounted) {
                     const status = error instanceof AxiosError ? error.response?.status : undefined;
                     if (status === 401) {
+                        setMonitoringUser(null);
                         logout();
+                    } else {
+                        captureHandledError(error, {
+                            area: 'auth_bootstrap',
+                            extras: {
+                                status,
+                            },
+                        });
                     }
                     setIsBootstrappingUser(false);
                 }

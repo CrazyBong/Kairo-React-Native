@@ -20,14 +20,14 @@ describe('app storage', () => {
 
             expect(storage.getString('token')).toBe('abc');
             storage.delete('token');
-            expect(storage.getString('token')).toBeNull();
+            expect(storage.getString('token')).toBeUndefined();
         });
     });
 
     it('uses the MMKV implementation when the native module is available', () => {
         jest.isolateModules(() => {
             const set = jest.fn();
-            const getString = jest.fn((key: string) => (key === 'token' ? 'persisted' : null));
+            const getString = jest.fn((key: string) => (key === 'token' ? 'persisted' : undefined));
             const remove = jest.fn();
 
             jest.doMock('react-native-mmkv', () => ({

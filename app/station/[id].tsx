@@ -4,11 +4,13 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
+import { useDemandPrediction, useStationPricing } from '@/api/demand';
+import { useStationReviews } from '@/api/reviews';
+import { formatStationAddress, useStationDetail } from '@/api/stations';
 import { DemandChart } from '@/components/discovery/DemandChart';
-import { Skeleton } from '@/components/ui/Skeleton';
 import { Button } from '@/components/ui/Button';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { Typography } from '@/components/ui/Typography';
-import { useStationDetail, formatStationAddress } from '@/api/stations';
 import { Colors, Radius, Spacing } from '@/constants';
 import { formatCurrency } from '@/utils/formatters';
 
@@ -19,6 +21,9 @@ export default function StationDetailScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
     const router = useRouter();
     const { data: station, isLoading, error } = useStationDetail(id ?? '');
+    const { data: demand, isLoading: isDemandLoading } = useDemandPrediction(id ?? '');
+    const { data: pricing } = useStationPricing(id ?? '');
+    const { data: reviewData, isLoading: isReviewsLoading } = useStationReviews(id ?? '');
 
     if (isLoading || !station) {
         return (
@@ -51,15 +56,26 @@ export default function StationDetailScreen() {
         }
     };
 
+    const billingUnit = station.price_per_unit != null ? '/kWh' : station.price_per_hour != null ? '/hour' : '';
     const priceLabel =
-        station.price_per_unit != null
-            ? `${formatCurrency(station.price_per_unit)}/kWh`
-            : station.price_per_hour != null
-              ? `${formatCurrency(station.price_per_hour)}/hour`
-              : 'Dynamic pricing';
+        pricing?.effective_price != null
+            ? `${formatCurrency(pricing.effective_price)}${billingUnit}`
+            : station.price_per_unit != null
+              ? `${formatCurrency(station.price_per_unit)}/kWh`
+              : station.price_per_hour != null
+                ? `${formatCurrency(station.price_per_hour)}/hour`
+                : 'Dynamic pricing';
 
     const chargerTypes = (station.charger_types ?? []).filter(Boolean) as string[];
-    const totalReviews = station.total_reviews ?? 0;
+    const reviewSummary = reviewData?.summary;
+    const totalReviews = reviewSummary?.total_reviews ?? station.total_reviews ?? 0;
+    const averageRatingValue = reviewSummary?.avg_rating ?? station.avg_rating;
+    const averageRating =
+        typeof averageRatingValue === 'number' && Number.isFinite(averageRatingValue)
+            ? averageRatingValue.toFixed(1)
+            : 'New';
+    const topReviews = reviewData?.reviews?.slice(0, 3) ?? [];
+    const slotIndicatorCount = Math.min(Math.max(station.total_slots, 0), 24);
 
     return (
         <View style={styles.container}>
@@ -89,7 +105,7 @@ export default function StationDetailScreen() {
                     <View style={styles.ratingRow}>
                         <Ionicons name="star" size={16} color={Colors.semantic.warning} />
                         <Typography variant="label" style={styles.ratingText}>
-                            {station.avg_rating ?? 'New'}
+                            {averageRating}
                         </Typography>
                         <Typography variant="caption" color="tertiary">
                             ({totalReviews} reviews)
@@ -131,14 +147,12 @@ export default function StationDetailScreen() {
                     </Typography>
                     <View style={styles.row}>
                         <View style={styles.availabilityDots}>
-                            {Array.from({ length: station.total_slots }).map((_, index) => (
+                            {Array.from({ length: slotIndicatorCount }).map((_, index) => (
                                 <View
                                     key={`${station.id}-${index}`}
                                     style={[
                                         styles.dot,
-                                        index < station.available_slots
-                                            ? styles.dotAvailable
-                                            : styles.dotOccupied,
+                                        index < station.available_slots ? styles.dotAvailable : styles.dotOccupied,
                                     ]}
                                 />
                             ))}
@@ -152,24 +166,18 @@ export default function StationDetailScreen() {
                 <Animated.View entering={FadeInDown.delay(400).springify()} style={styles.section}>
                     <View style={styles.detailsGrid}>
                         <View style={styles.detailBox}>
-                            <MaterialCommunityIcons
-                                name="currency-inr"
-                                size={20}
-                                color={Colors.brand.primary}
-                            />
+                            <MaterialCommunityIcons name="currency-inr" size={20} color={Colors.brand.primary} />
                             <Typography variant="label" style={styles.detailTitle}>
                                 {priceLabel}
                             </Typography>
                             <Typography variant="caption" color="tertiary">
-                                {station.network}
+                                {pricing?.surge_multiplier && pricing.surge_multiplier !== 1
+                                    ? `${station.network} • ${pricing.surge_multiplier.toFixed(2)}x surge`
+                                    : station.network}
                             </Typography>
                         </View>
                         <View style={styles.detailBox}>
-                            <MaterialCommunityIcons
-                                name="clock-outline"
-                                size={20}
-                                color={Colors.brand.primary}
-                            />
+                            <MaterialCommunityIcons name="clock-outline" size={20} color={Colors.brand.primary} />
                             <Typography variant="label" style={styles.detailTitle}>
                                 Operating Hours
                             </Typography>
@@ -181,13 +189,54 @@ export default function StationDetailScreen() {
                 </Animated.View>
 
                 <View style={styles.chartSection}>
-                    <DemandChart />
+                    <DemandChart
+                        forecast={demand?.forecast}
+                        peakHours={demand?.peak_hours}
+                        isLoading={isDemandLoading}
+                    />
                 </View>
+
+                <Animated.View entering={FadeInDown.delay(450).springify()} style={styles.section}>
+                    <Typography variant="h4" color="primary" style={styles.sectionTitle}>
+                        RECENT REVIEWS
+                    </Typography>
+                    {isReviewsLoading ? (
+                        <Typography variant="bodySmall" color="secondary">
+                            Loading reviews...
+                        </Typography>
+                    ) : topReviews.length === 0 ? (
+                        <Typography variant="bodySmall" color="secondary">
+                            No user reviews yet for this station.
+                        </Typography>
+                    ) : (
+                        topReviews.map((review) => {
+                            const safeRating = Math.min(Math.max(Number(review.rating) || 0, 0), 5);
+
+                            return (
+                                <View key={review.id} style={styles.reviewCard}>
+                                    <View style={styles.reviewHeader}>
+                                        <Typography variant="label" color="primary">
+                                            {review.phone_masked}
+                                        </Typography>
+                                        <Typography variant="caption" color="tertiary">
+                                            {Array.from({ length: safeRating })
+                                                .map(() => '★')
+                                                .join('')}
+                                        </Typography>
+                                    </View>
+                                    <Typography variant="bodySmall" color="secondary">
+                                        {review.comment?.trim() || 'User left a rating without a written comment.'}
+                                    </Typography>
+                                </View>
+                            );
+                        })
+                    )}
+                </Animated.View>
 
                 <Animated.View entering={FadeInDown.delay(500).springify()} style={styles.actionsContainer}>
                     <Button
                         variant="white"
-                        label="View on Google Maps"
+                        label="Open in Maps"
                         onPress={openMaps}
                         fullWidth
                         style={styles.mapsButton}
@@ -254,7 +303,13 @@ const styles = StyleSheet.create({
     },
     chargerBadgeText: { color: Colors.brand.white, marginLeft: 4 },
     row: { flexDirection: 'row', alignItems: 'center' },
-    availabilityDots: { flexDirection: 'row', gap: 4, marginRight: Spacing.md, flexWrap: 'wrap', maxWidth: 160 },
+    availabilityDots: {
+        flexDirection: 'row',
+        gap: 4,
+        marginRight: Spacing.md,
+        flexWrap: 'wrap',
+        maxWidth: 160,
+    },
     dot: { width: 12, height: 12, borderRadius: 6 },
     dotAvailable: { backgroundColor: Colors.semantic.success },
     dotOccupied: { backgroundColor: Colors.border.divider },
@@ -270,6 +325,20 @@ const styles = StyleSheet.create({
     },
     detailTitle: { marginTop: Spacing.sm, marginBottom: 2 },
     chartSection: { paddingHorizontal: Spacing.xl, marginTop: Spacing.xl },
+    reviewCard: {
+        backgroundColor: Colors.surface.default,
+        padding: Spacing.md,
+        borderRadius: Radius.md,
+        borderWidth: 1,
+        borderColor: Colors.border.subtle,
+        marginBottom: Spacing.sm,
+    },
+    reviewHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: Spacing.xs,
+    },
     actionsContainer: { paddingHorizontal: Spacing.xl },
     mapsButton: { marginBottom: Spacing.md },
     bottomSpacer: { height: 100 },

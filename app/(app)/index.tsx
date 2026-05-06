@@ -29,7 +29,7 @@ export default function DiscoverScreen() {
                 onSelectStation={(stationId) => router.push(`/station/${stationId}`)}
             />
 
-            <Animated.View entering={FadeInUp.delay(150).springify()} style={styles.sheet}>
+            <Animated.View entering={FadeInUp.delay(150).springify()} style={styles.sheet} testID="discover-screen">
                 <View style={styles.sheetHeader}>
                     <View>
                         <Typography variant="h3" color="primary">

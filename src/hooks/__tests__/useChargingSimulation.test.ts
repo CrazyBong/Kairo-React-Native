@@ -2,13 +2,14 @@ import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { useChargingSimulation } from '@/hooks/useChargingSimulation';
 
 const mockPush = jest.fn();
+const mockReplace = jest.fn();
 const mockUseSegments = jest.fn();
 const mockGetSafeBatteryState = jest.fn();
 const mockGetSafeBatteryLevel = jest.fn();
 const mockAddSafeBatteryListener = jest.fn();
 
 jest.mock('expo-router', () => ({
-    useRouter: () => ({ push: mockPush }),
+    useRouter: () => ({ push: mockPush, replace: mockReplace }),
     useSegments: () => mockUseSegments(),
 }));
 
@@ -52,7 +53,7 @@ describe('useChargingSimulation', () => {
             listenerCallback?.({ batteryState: 2 });
         });
 
-        expect(mockPush).toHaveBeenCalledWith('/(app)/charging');
+        expect(mockReplace).toHaveBeenCalledWith('/(app)/charging');
     });
 
     it('does not redirect when the user is already on a charging route', async () => {
@@ -70,6 +71,6 @@ describe('useChargingSimulation', () => {
             listenerCallback?.({ batteryState: 2 });
         });
 
-        expect(mockPush).not.toHaveBeenCalled();
+        expect(mockReplace).not.toHaveBeenCalled();
     });
 });

@@ -3,8 +3,11 @@ import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { logout as logoutRequest } from '@/api/auth';
 import { useBookings } from '@/api/bookings';
+import { useNotifications } from '@/api/notifications';
 import { ConnectedCarHero } from '@/components/profile/ConnectedCarHero';
 import { Typography } from '@/components/ui/Typography';
 import { Colors, Radius, Spacing } from '@/constants';
@@ -13,11 +16,14 @@ import { normalizeApiError } from '@/utils/api-error';
 import { BatteryState, getSafeBatteryLevel, getSafeBatteryState, triggerSimulatorCharging } from '@/utils/safe-battery';
 
 export default function ProfileScreen() {
+    const insets = useSafeAreaInsets();
     const user = useAuthStore((state) => state.user);
-    const logout = useAuthStore((state) => state.logout);
+    const clearSession = useAuthStore((state) => state.logout);
     const router = useRouter();
     const { data: bookings = [], error: bookingsError } = useBookings();
+    const { data: notificationsData } = useNotifications();
     const [batteryLevel, setBatteryLevel] = React.useState(0);
+    const [isLoggingOut, setIsLoggingOut] = React.useState(false);
     const [vehicleStatus, setVehicleStatus] = React.useState<'Parked' | 'Charging' | 'Driving' | 'Not connected'>(
         user?.vehicle_type ? 'Parked' : 'Not connected'
     );
@@ -63,13 +69,34 @@ export default function ProfileScreen() {
         return total > 0 ? total : null;
     }, [bookings]);
 
+    const handleLogout = async () => {
+        setIsLoggingOut(true);
+        try {
+            await logoutRequest();
+        } catch {
+            // Local logout still wins if the network call fails.
+        } finally {
+            clearSession();
+            setIsLoggingOut(false);
+        }
+    };
+
     return (
         <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-            <View style={styles.topBar}>
+            <View style={[styles.topBar, { paddingTop: insets.top + Spacing.md }]}>
                 <Typography variant="h3" color="primary">
                     Hi, {user?.name || 'Driver'}
                 </Typography>
-                <Ionicons name="notifications-outline" size={24} color={Colors.brand.dark} />
+                <TouchableOpacity onPress={() => router.push('/(app)/notifications')} style={styles.notificationButton}>
+                    <Ionicons name="notifications-outline" size={24} color={Colors.brand.dark} />
+                    {(notificationsData?.unreadCount ?? 0) > 0 ? (
+                        <View style={styles.notificationBadge}>
+                            <Typography variant="caption" color="inverted" style={styles.notificationBadgeText}>
+                                {(notificationsData?.unreadCount ?? 0) > 9 ? '9+' : notificationsData?.unreadCount}
+                            </Typography>
+                        </View>
+                    ) : null}
+                </TouchableOpacity>
             </View>
 
             <ConnectedCarHero
@@ -113,10 +140,10 @@ export default function ProfileScreen() {
                 />
                 <SettingsRow icon="help-circle" title="Help & Support" onPress={() => router.push('/profile/help')} />
 
-                <TouchableOpacity style={styles.logoutBtn} onPress={logout} activeOpacity={0.8}>
+                <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.8} disabled={isLoggingOut}>
                     <Ionicons name="log-out-outline" size={20} color={Colors.semantic.error} />
                     <Typography variant="button" style={styles.logoutText}>
-                        Log Out
+                        {isLoggingOut ? 'Logging Out...' : 'Log Out'}
                     </Typography>
                 </TouchableOpacity>
 
@@ -153,7 +180,12 @@ const SettingsRow = ({
     valueColor?: string;
     onPress?: () => void;
 }) => (
-    <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.7}>
+    <TouchableOpacity
+        style={styles.row}
+        onPress={onPress}
+        activeOpacity={onPress ? 0.7 : 1}
+        disabled={!onPress}
+    >
         <View style={styles.rowLeft}>
             <View style={styles.iconCircle}>
                 <Ionicons name={icon} size={18} color={Colors.brand.primary} />
@@ -168,7 +200,9 @@ const SettingsRow = ({
                     {value}
                 </Typography>
             ) : null}
-            <Ionicons name="chevron-forward" size={20} color={Colors.border.divider} style={styles.chevron} />
+            {onPress ? (
+                <Ionicons name="chevron-forward" size={20} color={Colors.border.divider} style={styles.chevron} />
+            ) : null}
         </View>
     </TouchableOpacity>
 );
@@ -183,9 +217,27 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'center',
         paddingHorizontal: Spacing.xl,
-        paddingTop: 60,
         paddingBottom: Spacing.md,
         backgroundColor: Colors.brand.white,
+    },
+    notificationButton: {
+        position: 'relative',
+        padding: Spacing.xs,
+    },
+    notificationBadge: {
+        position: 'absolute',
+        top: -2,
+        right: -4,
+        minWidth: 18,
+        height: 18,
+        borderRadius: 9,
+        backgroundColor: Colors.semantic.error,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 4,
+    },
+    notificationBadgeText: {
+        fontSize: 10,
     },
     contentSection: {
         paddingHorizontal: Spacing.xl,

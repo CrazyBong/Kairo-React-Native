@@ -11,7 +11,9 @@ export function useChargingSimulation() {
     const segments = useSegments();
     const [batteryState, setBatteryState] = useState<BatteryState | null>(null);
     const [chargeLevel, setChargeLevel] = useState<number>(0);
-    const subscriptionRef = useRef<any>(null);
+    const subscriptionRef = useRef<{ remove?: () => void } | null>(null);
+    const hasInitializedRef = useRef(false);
+    const previousBatteryStateRef = useRef<BatteryState | null>(null);
 
     useEffect(() => {
         async function initBattery() {
@@ -19,6 +21,8 @@ export function useChargingSimulation() {
             const level = await getSafeBatteryLevel();
             setBatteryState(state);
             setChargeLevel(level);
+            previousBatteryStateRef.current = state;
+            hasInitializedRef.current = true;
 
             // Subscribe to state changes (plug/unplug)
             subscriptionRef.current = addSafeBatteryListener(({ batteryState }) => {
@@ -29,21 +33,27 @@ export function useChargingSimulation() {
         initBattery();
 
         return () => {
-            subscriptionRef.current?.remove();
+            subscriptionRef.current?.remove?.();
         };
     }, []);
 
     useEffect(() => {
-        // Trigger: Phone is plugged in (CHARGING or FULL)
-        const isCharging = batteryState === BatteryState.CHARGING || batteryState === BatteryState.FULL;
+        if (!hasInitializedRef.current || batteryState === null) {
+            return;
+        }
 
-        // Robust check for current segment
+        const isCharging = batteryState === BatteryState.CHARGING || batteryState === BatteryState.FULL;
+        const previousBatteryState = previousBatteryStateRef.current;
+        const wasCharging =
+            previousBatteryState === BatteryState.CHARGING || previousBatteryState === BatteryState.FULL;
         const isOnChargingScreen = (segments as string[]).includes('charging');
 
-        if (isCharging && !isOnChargingScreen) {
+        if (isCharging && !wasCharging && !isOnChargingScreen) {
             console.log('[Charging] Hardware trigger: Plug-in detected. Redirecting to simulation...');
-            router.push('/(app)/charging');
+            router.replace('/(app)/charging');
         }
+
+        previousBatteryStateRef.current = batteryState;
     }, [batteryState, router, segments]);
 
     return {

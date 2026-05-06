@@ -12,7 +12,12 @@ export function formatDistance(distanceKm: number): string {
 }
 
 export function formatDateTime(isoString: string): string {
-    return new Date(isoString).toLocaleString('en-IN', {
+    const date = new Date(isoString);
+    if (Number.isNaN(date.getTime())) {
+        return 'Invalid date';
+    }
+
+    return date.toLocaleString('en-IN', {
         day: 'numeric',
         month: 'short',
         hour: 'numeric',
@@ -23,6 +28,9 @@ export function formatDateTime(isoString: string): string {
 export function formatTimeRange(startIso: string, endIso: string): string {
     const start = new Date(startIso);
     const end = new Date(endIso);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        return 'Invalid time';
+    }
 
     return `${start.toLocaleTimeString('en-IN', {
         hour: 'numeric',

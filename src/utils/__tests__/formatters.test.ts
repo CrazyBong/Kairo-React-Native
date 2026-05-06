@@ -23,4 +23,9 @@ describe('formatter utilities', () => {
         expect(result).toContain(' - ');
         expect(result).toMatch(/\d{1,2}:\d{2}/i);
     });
+
+    it('handles invalid date values gracefully', () => {
+        expect(formatDateTime('not-a-date')).toBe('Invalid date');
+        expect(formatTimeRange('bad-start', 'bad-end')).toBe('Invalid time');
+    });
 });

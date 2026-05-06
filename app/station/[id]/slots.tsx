@@ -34,6 +34,9 @@ function buildTimeChoices(openTime = '06:00', closeTime = '23:00'): { label: str
 
     const closeBoundary = new Date(base);
     closeBoundary.setHours(closeHour, closeMinute, 0, 0);
+    if (closeBoundary <= base) {
+        closeBoundary.setDate(closeBoundary.getDate() + 1);
+    }
 
     while (base < closeBoundary) {
         if (base >= now) {

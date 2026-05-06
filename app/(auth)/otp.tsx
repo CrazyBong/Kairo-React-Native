@@ -43,7 +43,7 @@ export default function OTPScreen() {
     const verifyMutation = useMutation({
         mutationFn: (otp: string) => verifyOtp(phone!, otp),
         onSuccess: (response: any) => {
-            const data = response.data?.data;
+            const data = response.data?.data ?? response.data;
             if (!data?.access_token || !data?.refresh_token) {
                 setError('Verification failed. Please try again.');
                 return;
@@ -104,7 +104,7 @@ export default function OTPScreen() {
                 </Animated.View>
 
                 <Animated.View entering={FadeInUp.delay(300).springify()} style={styles.formContainer}>
-                    <OTPInput length={6} onComplete={handleComplete} error={error} />
+                    <OTPInput length={6} onComplete={handleComplete} error={error} testIDPrefix="auth-otp-input" />
 
                     <View style={styles.resendContainer}>
                         {timer > 0 ? (

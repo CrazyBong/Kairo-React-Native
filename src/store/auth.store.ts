@@ -26,6 +26,10 @@ interface AuthState {
     logout: () => void;
 }
 
+function readStorageString(key: string): string | null {
+    return getAppStorage().getString(key) ?? null;
+}
+
 export const useAuthStore = create<AuthState>((set) => ({
     accessToken: null,
     refreshToken: null,
@@ -61,6 +65,13 @@ export const useAuthStore = create<AuthState>((set) => ({
         }));
     },
     setUser: (user) => {
+        const storage = getAppStorage();
+        if (user) {
+            storage.set('user', JSON.stringify(user));
+        } else {
+            storage.delete('user');
+        }
+
         set((state) => ({
             user,
             isAuthenticated: Boolean(state.accessToken),
@@ -68,12 +79,23 @@ export const useAuthStore = create<AuthState>((set) => ({
     },
     hydrate: () => {
         const storage = getAppStorage();
-        const accessToken = storage.getString('access_token');
-        const refreshToken = storage.getString('refresh_token');
+        const accessToken = readStorageString('access_token');
+        const refreshToken = readStorageString('refresh_token');
+        const persistedUser = readStorageString('user');
+
+        let user: User | null = null;
+        if (persistedUser) {
+            try {
+                user = JSON.parse(persistedUser) as User;
+            } catch {
+                storage.delete('user');
+            }
+        }
 
         set({
             accessToken,
             refreshToken,
+            user,
             isAuthenticated: Boolean(accessToken),
             isHydrated: true,
         });
@@ -82,6 +104,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         const storage = getAppStorage();
         storage.delete('access_token');
         storage.delete('refresh_token');
+        storage.delete('user');
 
         set({
             accessToken: null,

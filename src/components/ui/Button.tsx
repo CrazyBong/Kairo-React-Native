@@ -1,6 +1,7 @@
 // src/components/ui/Button.tsx
 import React from 'react';
 import { TouchableOpacity, ActivityIndicator, StyleSheet, ViewStyle } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { Colors, Radius, Spacing } from '@/constants';
 import { Typography } from './Typography';
 
@@ -17,6 +18,8 @@ interface ButtonProps {
     fullWidth?: boolean;
     icon?: React.ReactNode;
     style?: ViewStyle;
+    testID?: string;
+    haptics?: boolean;
 }
 
 export const Button: React.FC<ButtonProps> = ({
@@ -29,6 +32,8 @@ export const Button: React.FC<ButtonProps> = ({
     fullWidth = false,
     icon,
     style,
+    testID,
+    haptics = true,
 }) => {
     const isDisabled = disabled || loading;
 
@@ -37,11 +42,24 @@ export const Button: React.FC<ButtonProps> = ({
         return 'primary';
     };
 
+    const handlePress = () => {
+        if (isDisabled) {
+            return;
+        }
+
+        if (haptics) {
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+        }
+
+        onPress();
+    };
+
     return (
         <TouchableOpacity
-            onPress={onPress}
+            onPress={handlePress}
             disabled={isDisabled}
             activeOpacity={0.8}
+            testID={testID}
             style={[
                 styles.base,
                 styles[variant],

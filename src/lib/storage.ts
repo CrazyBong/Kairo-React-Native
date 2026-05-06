@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-type StorageValue = string | null;
+type StorageValue = string | undefined;
+let storageEncryptionKey: string | null = null;
 
 interface KeyValueStorage {
     getString(key: string): StorageValue;
@@ -12,7 +13,7 @@ class MemoryStorage implements KeyValueStorage {
     private readonly store = new Map<string, string>();
 
     getString(key: string): StorageValue {
-        return this.store.get(key) ?? null;
+        return this.store.get(key);
     }
 
     set(key: string, value: string): void {
@@ -33,11 +34,14 @@ let storageInstance: KeyValueStorage | null = null;
 function createStorage(): KeyValueStorage {
     try {
         const mmkvModule = require('react-native-mmkv') as {
-            MMKV?: new (config?: { id?: string }) => KeyValueStorage;
+            MMKV?: new (config?: { id?: string; encryptionKey?: string }) => KeyValueStorage;
         };
 
         if (mmkvModule.MMKV) {
-            return new mmkvModule.MMKV({ id: 'kairo-auth' });
+            return new mmkvModule.MMKV({
+                id: 'kairo-auth',
+                encryptionKey: storageEncryptionKey ?? undefined,
+            });
         }
     } catch {
         // Tests and non-native environments fall back to memory storage.
@@ -54,6 +58,12 @@ export function getAppStorage(): KeyValueStorage {
     return storageInstance;
 }
 
+export function setStorageEncryptionKey(encryptionKey: string | null): void {
+    storageEncryptionKey = encryptionKey;
+    storageInstance = null;
+}
+
 export function resetAppStorage(): void {
     storageInstance = new MemoryStorage();
+    storageEncryptionKey = null;
 }

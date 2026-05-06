@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useMutation } from '@tanstack/react-query';
 
-import { cancelBooking, createBooking } from '@/api/bookings';
+import { createBooking } from '@/api/bookings';
 import { verifyPayment } from '@/api/payments';
 import { Button } from '@/components/ui/Button';
 import { Typography } from '@/components/ui/Typography';
@@ -48,8 +48,14 @@ export default function BookingConfirmScreen() {
     const total = subtotal + taxes;
     const isSubmitting = bookingMutation.isPending || paymentVerificationMutation.isPending || isProcessing;
 
+    const redirectAfterPaymentIssue = (destination: '/(app)' | '/(app)/bookings') => {
+        clearDraft();
+        router.replace(destination);
+    };
+
     const handlePayment = async () => {
         let bookingId: string | null = null;
+        let bookingCreated = false;
 
         try {
             const bookingResponse = await bookingMutation.mutateAsync({
@@ -58,10 +64,26 @@ export default function BookingConfirmScreen() {
                 scheduled_end: draft.scheduledEnd,
             });
             bookingId = bookingResponse.data.data.booking_id;
+            bookingCreated = true;
 
             const paymentResult = await openCheckout(total, bookingResponse.data.data.razorpay_order_id);
             if (!paymentResult) {
-                await cancelBooking(bookingResponse.data.data.booking_id);
+                Alert.alert(
+                    'Payment cancelled',
+                    'Your slot hold will be released automatically if payment is not completed in time.',
+                    [
+                        {
+                            text: 'View bookings',
+                            onPress: () => redirectAfterPaymentIssue('/(app)/bookings'),
+                        },
+                        {
+                            text: 'Go home',
+                            style: 'cancel',
+                            onPress: () => redirectAfterPaymentIssue('/(app)'),
+                        },
+                    ],
+                    { cancelable: false }
+                );
                 return;
             }
 
@@ -78,12 +100,24 @@ export default function BookingConfirmScreen() {
             const normalizedError = normalizeApiError(error);
             bookingMutation.reset();
             paymentVerificationMutation.reset();
-            if (bookingId) {
-                try {
-                    await cancelBooking(bookingId);
-                } catch {
-                    // Best-effort cleanup if booking creation succeeded before payment failed.
-                }
+            if (bookingCreated && bookingId) {
+                Alert.alert(
+                    'Payment reconciliation in progress',
+                    `${normalizedError.message} We are checking the payment status on the server. If payment was not completed, your slot hold will expire automatically.`,
+                    [
+                        {
+                            text: 'Open bookings',
+                            onPress: () => redirectAfterPaymentIssue('/(app)/bookings'),
+                        },
+                        {
+                            text: 'Go home',
+                            style: 'cancel',
+                            onPress: () => redirectAfterPaymentIssue('/(app)'),
+                        },
+                    ],
+                    { cancelable: false }
+                );
+                return;
             }
             Alert.alert('Payment error', normalizedError.message);
         }

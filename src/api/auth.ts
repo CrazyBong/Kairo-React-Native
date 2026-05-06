@@ -23,12 +23,22 @@ export interface VerifyOtpResponse {
     user?: User;
 }
 
+export interface SendOtpResponse {
+    message: string;
+    expires_in_seconds: number;
+    phone: string;
+    dev_otp?: string | null;
+}
+
+export type SendOtpApiResponse = SendOtpResponse | ApiSuccessResponse<SendOtpResponse>;
+export type VerifyOtpApiResponse = VerifyOtpResponse | ApiSuccessResponse<VerifyOtpResponse>;
+
 export function sendOtp(phone: string) {
-    return client.post('/auth/otp/send', { phone });
+    return client.post<SendOtpApiResponse>('/auth/otp/send', { phone });
 }
 
 export function verifyOtp(phone: string, otp: string) {
-    return client.post<ApiSuccessResponse<VerifyOtpResponse>>('/auth/otp/verify', {
+    return client.post<VerifyOtpApiResponse>('/auth/otp/verify', {
         phone,
         otp,
     });
