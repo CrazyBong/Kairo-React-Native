@@ -102,7 +102,7 @@ Notes:
 
 - Booking creation is real.
 - Booking cancellation is real.
-- Payment cancellation performs best-effort orphaned-booking cleanup.
+- Payment cancellation no longer performs client-side financial rollback. The app hands off to server-side reconciliation and lock expiry behavior instead.
 
 ### Payments
 
@@ -116,6 +116,7 @@ Source: `src/api/payments.ts`
 Notes:
 
 - Backend verification is live.
+- Backend webhook reconciliation is live.
 - Frontend checkout is still simulated in `src/hooks/useRazorpay.ts`.
 - Replacing the simulated checkout with the real SDK is still pending.
 
